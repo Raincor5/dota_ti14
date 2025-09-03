@@ -1,0 +1,44 @@
+2025-09-03 20:40:25,365 - data_collection.main - INFO - Collecting pro matches from the last 7 days...
+2025-09-03 20:40:29,150 - data_collection.opendota_client - ERROR - API request failed for teams/9482212: Expecting value: line 1 column 1 (char 0)
+2025-09-03 20:40:29,150 - data_collection.main - WARNING - Error getting team info for 9482212: 'NoneType' object is not subscriptable
+2025-09-03 20:40:29,150 - data_collection.main - ERROR - Error processing match 8445667826: 'NoneType' object is not subscriptable
+2025-09-03 20:40:34,407 - data_collection.opendota_client - ERROR - API request failed for teams/9849843: Expecting value: line 1 column 1 (char 0)
+2025-09-03 20:40:34,407 - data_collection.main - WARNING - Error getting team info for 9849843: 'NoneType' object is not subscriptable
+2025-09-03 20:40:34,407 - data_collection.main - ERROR - Error processing match 8445650769: 'NoneType' object is not subscriptable
+2025-09-03 20:40:55,953 - data_collection.opendota_client - ERROR - API request failed for teams/9832935: Expecting value: line 1 column 1 (char 0)
+2025-09-03 20:40:55,954 - data_collection.main - WARNING - Error getting team info for 9832935: 'NoneType' object is not subscriptable
+2025-09-03 20:40:55,955 - data_collection.main - ERROR - Error processing match 8445566051: 'NoneType' object is not subscriptable
+2025-09-03 20:40:55,955 - data_collection.main - INFO - Collected 10 matches so far...
+2025-09-03 20:40:55,955 - data_collection.main - INFO - Finished collecting 10 matches
+2025-09-03 20:40:55,955 - data_collection.main - INFO - Saving collected data...
+2025-09-03 20:40:55,992 - data_collection.main - INFO - Data saved successfully
+🎮 Dota 2 Data Science Project - TI14 Predictions
+==================================================
+
+📊 Initializing data collector...
+🔄 No existing data found. Starting data collection...
+   This will take some time. You can interrupt with Ctrl+C.
+✅ Data collection completed!
+
+📈 Data Collection Summary:
+   total_players: 60
+   total_teams: 13
+   total_matches: 7
+   players_with_matches: 0
+   teams_with_matches: 0
+   matches_with_results: 7
+
+🏆 ELO Rating System Demo:
+   Team A: CHEFBRAND TEAM (ELO: 1200.0)
+   Team B: Business Development Sales Marketing (ELO: 1221.1)
+   Prediction: Even Match
+   Team A win probability: 47.0%
+   Confidence: 30.0%
+
+🎯 Next Steps:
+1. Explore data in Jupyter notebooks
+2. Build machine learning models
+3. Analyze tournament trends
+4. Make TI14 predictions!
+
+🚀 Project ready! Check the notebooks/ directory for analysis examples.
