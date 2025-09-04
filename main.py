@@ -47,11 +47,13 @@ def main():
         print("   This will take some time. You can interrupt with Ctrl+C.")
         
         try:
-            # Collect a small amount of data for demonstration
-            collector.collect_recent_pro_matches(days_back=7, max_matches=10)
-            collector.save_data()
+            # TI14 teams are already loaded in the constructor
+            print("✅ TI14 teams loaded successfully!")
             
-            print("✅ Data collection completed!")
+            # Skip collecting random recent matches - focus only on TI14 teams
+            print("   Skipping recent match collection - focusing on TI14 teams only")
+            
+            print("✅ TI14 team collection completed!")
             
         except KeyboardInterrupt:
             print("\n⏹️  Data collection interrupted by user")
@@ -66,22 +68,41 @@ def main():
         if key != 'collection_timestamp':
             print(f"   {key}: {value}")
     
-    # Demonstrate ELO system
+    # Demonstrate ELO system with TI14 teams
     if collector.teams:
-        print("\n🏆 ELO Rating System Demo:")
-        teams_list = list(collector.teams.values())
-        if len(teams_list) >= 2:
+        print("\n🏆 ELO Rating System Demo (TI14 Teams):")
+        
+        # Filter for actual TI14 teams (teams with real OpenDota IDs, not generated ones)
+        ti14_teams = {team_id: team for team_id, team in collector.teams.items() 
+                      if team_id < 10000000}  # Real OpenDota team IDs can be large numbers
+        other_teams = {team_id: team for team_id, team in collector.teams.items() 
+                      if team_id >= 10000000}  # Generated IDs for teams not found
+        
+        print(f"   TI14 Teams (Real OpenDota IDs): {len(ti14_teams)}")
+        print(f"   Other Teams (Generated IDs): {len(other_teams)}")
+        print(f"   Total Teams: {len(collector.teams)}")
+        
+        # Show TI14 teams
+        if ti14_teams:
+            print(f"\n   TI14 Teams Found:")
+            for team_id, team in list(ti14_teams.items())[:8]:  # Show first 8
+                print(f"   - {team.name} (ID: {team_id}, ELO: {team.team_elo:.1f})")
+        
+        if len(ti14_teams) >= 2:
+            teams_list = list(ti14_teams.values())
             team_a = teams_list[0]
             team_b = teams_list[1]
             
             elo_system = EloRatingSystem()
             prediction = elo_system.predict_match_outcome(team_a, team_b, 'S')
             
-            print(f"   Team A: {team_a.name} (ELO: {team_a.team_elo:.1f})")
-            print(f"   Team B: {team_b.name} (ELO: {team_b.team_elo:.1f})")
+            print(f"\n   Sample TI14 Match Prediction:")
+            print(f"   {team_a.name} vs {team_b.name}")
             print(f"   Prediction: {prediction['prediction']}")
-            print(f"   Team A win probability: {prediction['team_a_win_probability']:.1%}")
+            print(f"   {team_a.name} win probability: {prediction['team_a_win_probability']:.1%}")
             print(f"   Confidence: {prediction['confidence']:.1%}")
+        else:
+            print("   Need at least 2 TI14 teams for ELO demo")
     
     print("\n🎯 Next Steps:")
     print("1. Explore data in Jupyter notebooks")

@@ -152,7 +152,91 @@ class EloRatingSystem:
         # Team experience factor
         experience_factor = max(0.6, 1.0 - (team.total_matches / 500))
         
-        return self.base_k_factor * rating_factor * tournament_mult * experience_factor
+        # TI14-specific adjustments
+        if match_importance == 'S':  # TI14 matches
+            tournament_mult *= 1.3  # Higher volatility for TI14
+        elif match_importance == 'A':  # TI14 qualifiers
+            tournament_mult *= 1.1
+        
+        # Roster stability factor (simplified - in practice you'd track actual roster changes)
+        roster_factor = self._calculate_roster_stability_factor(team)
+        
+        return self.base_k_factor * rating_factor * tournament_mult * experience_factor * roster_factor
+    
+    def _calculate_roster_stability_factor(self, team: Team) -> float:
+        """
+        Calculate roster stability factor for TI14 teams.
+        Accounts for stand-ins, roster changes, etc.
+        
+        Args:
+            team: Team object
+            
+        Returns:
+            Roster stability factor (0.5 to 1.5)
+        """
+        # This is a simplified version - in practice you'd track actual roster changes
+        # For now, we'll use team age and recent performance as proxies
+        
+        if not hasattr(team, 'elo_history') or len(team.elo_history) < 5:
+            return 1.0  # Default for new teams
+        
+        # Calculate recent performance volatility
+        recent_matches = team.elo_history[-10:]  # Last 10 matches
+        if len(recent_matches) < 3:
+            return 1.0
+        
+        # Calculate standard deviation of recent ELO changes
+        changes = [change for _, change in recent_matches]
+        if len(changes) < 2:
+            return 1.0
+        
+        # Simple variance calculation
+        mean_change = sum(changes) / len(changes)
+        variance = sum((c - mean_change) ** 2 for c in changes) / len(changes)
+        std_dev = variance ** 0.5
+        
+        # High volatility suggests roster instability
+        if std_dev > 50:  # High volatility
+            return 0.7  # Reduce K-factor for unstable rosters
+        elif std_dev > 30:  # Medium volatility
+            return 0.85
+        elif std_dev < 15:  # Low volatility
+            return 1.2  # Increase K-factor for stable rosters
+        else:
+            return 1.0
+    
+    def detect_stand_in_impact(self, team: Team, match: Match) -> float:
+        """
+        Detect potential stand-in impact on team performance.
+        
+        Args:
+            team: Team object
+            match: Match object
+            
+        Returns:
+            Stand-in impact factor (0.8 to 1.2)
+        """
+        # This is a simplified approach - in practice you'd track actual roster changes
+        # For now, we'll use performance consistency as a proxy
+        
+        if not hasattr(team, 'elo_history') or len(team.elo_history) < 10:
+            return 1.0  # Default for new teams
+        
+        # Calculate performance consistency over last 20 matches
+        recent_matches = team.elo_history[-20:]
+        if len(recent_matches) < 10:
+            return 1.0
+        
+        # Calculate win rate consistency
+        # This is a simplified approach - in practice you'd analyze actual player rosters
+        
+        # For now, return neutral factor
+        # In a real implementation, you'd:
+        # 1. Track player rosters for each match
+        # 2. Detect when key players are missing
+        # 3. Adjust ELO calculations accordingly
+        
+        return 1.0
     
     def update_player_rating(self, player: Player, opponent_rating: float, 
                            actual_score: float, match_date: datetime,

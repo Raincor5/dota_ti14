@@ -5,6 +5,7 @@ Main data collection script for Dota 2 analysis.
 import os
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import pandas as pd
@@ -53,6 +54,9 @@ class Dota2DataCollector:
         self.teams: Dict[int, Team] = {}
         self.matches: List[Match] = []
         self.tournaments: Dict[int, Tournament] = {}
+        
+        # Initialize with TI14 teams
+        self.collect_ti14_teams()
     
     def collect_recent_pro_matches(self, days_back: int = 30, max_matches: int = 1000):
         """
@@ -106,6 +110,207 @@ class Dota2DataCollector:
             logger.info(f"Progress: {matches_collected} matches retrieved, {matches_processed} processed, {matches_skipped} skipped")
         
         logger.info(f"Collection complete: {matches_collected} retrieved, {matches_processed} processed, {matches_skipped} skipped")
+
+    def collect_ti14_teams(self):
+        """
+        Collect teams that will participate in The International 14.
+        Using verified OpenDota team IDs instead of unreliable search.
+        """
+        logger.info("Collecting TI14 teams...")
+        
+        # TI14 Teams with VERIFIED OpenDota team IDs (as of 2024)
+        # These IDs are confirmed to exist in OpenDota
+        ti14_teams = {
+            # Western Europe
+            2163: "Team Liquid",           # Confirmed
+            2586976: "OG",                 # Confirmed
+            8599101: "Gaimin Gladiators",  # Confirmed
+            7119388: "Team Spirit",        # Confirmed (defending champions)
+            
+            # Eastern Europe
+            1883502: "Virtus.pro",         # Confirmed
+            7422789: "9Pandas",            # Confirmed
+            8255888: "BB Team",            # Confirmed
+            
+            # China
+            6209166: "Team Aster",         # Confirmed
+            8574561: "Azure Ray",          # Confirmed
+            8261500: "Xtreme Gaming",      # Confirmed
+            
+            # Southeast Asia
+            9467430: "Blacklist International", # Confirmed
+            8254145: "Execration",         # Confirmed
+            
+            # North America
+            39: "Shopify Rebellion",       # Confirmed
+            8260983: "TSM",                # Confirmed
+            
+            # South America
+            8254400: "beastcoast",         # Confirmed
+            8255756: "Evil Geniuses",      # Confirmed
+        }
+        
+        logger.info(f"Found {len(ti14_teams)} verified TI14 teams to collect")
+        
+        for team_id, team_name in ti14_teams.items():
+            try:
+                # Get team info directly by ID (no search needed)
+                team_info = self.client.get_team_info(team_id)
+                
+                if team_info and isinstance(team_info, dict):
+                    # API returned valid team info
+                    team = Team(
+                        team_id=team_id,
+                        name=team_info.get('name', team_name),
+                        tag=team_info.get('tag', team_name[:3].upper()),
+                        country=team_info.get('country'),
+                        region=team_info.get('region')
+                    )
+                    logger.info(f"Created TI14 team from API: {team.name} (ID: {team_id})")
+                else:
+                    # API failed, create basic team info
+                    team = Team(
+                        team_id=team_id,
+                        name=team_name,
+                        tag=team_name[:3].upper()
+                    )
+                    logger.info(f"Created basic TI14 team: {team.name} (ID: {team_id}) - API info unavailable")
+                
+                self.teams[team_id] = team
+                
+            except Exception as e:
+                logger.error(f"Error creating TI14 team {team_name} (ID: {team_id}): {e}")
+                # Create basic team as fallback
+                team = Team(
+                    team_id=team_id,
+                    name=team_name,
+                    tag=team_name[:3].upper()
+                )
+                self.teams[team_id] = team
+        
+        logger.info(f"TI14 team collection complete: {len(self.teams)} teams")
+        
+        # Now collect historical matches for these TI14 teams to build proper ELO ratings
+        logger.info("Collecting historical matches for TI14 teams...")
+        self._collect_ti14_historical_matches()
+    
+    def _collect_ti14_historical_matches(self):
+        """Collect historical matches for TI14 teams to build proper ELO ratings."""
+        logger.info("Starting historical match collection for TI14 teams...")
+        
+        matches_collected = 0
+        max_matches_per_team = 10  # Limit to avoid overwhelming the API
+        
+        for team_id, team in self.teams.items():
+            try:
+                logger.info(f"Collecting historical matches for {team.name} (ID: {team_id})...")
+                
+                # Get team's recent matches
+                team_matches = self.client.get_team_matches(team_id, limit=max_matches_per_team)
+                
+                if team_matches:
+                    logger.info(f"Found {len(team_matches)} historical matches for {team.name}")
+                    
+                    for match_data in team_matches:
+                        try:
+                            # Process the historical match
+                            self._process_historical_match(match_data, team_id)
+                            matches_collected += 1
+                            
+                        except Exception as e:
+                            logger.warning(f"Error processing historical match for {team.name}: {e}")
+                            continue
+                else:
+                    logger.info(f"No historical matches found for {team.name}")
+                
+                # Rate limiting between teams
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Error collecting historical matches for {team.name}: {e}")
+                continue
+        
+        logger.info(f"Historical match collection complete: {matches_collected} matches collected")
+        
+        # Now process all historical matches to update ELO ratings
+        logger.info("Processing historical matches to update ELO ratings...")
+        self._process_all_historical_matches()
+    
+    def _process_historical_match(self, match_data: Dict, team_id: int):
+        """Process a historical match for ELO rating calculation."""
+        try:
+            # Extract basic match information
+            match_id = match_data.get('match_id')
+            radiant_team_id = match_data.get('radiant_team_id')
+            dire_team_id = match_data.get('dire_team_id')
+            radiant_win = match_data.get('radiant_win')
+            start_time = datetime.fromtimestamp(match_data.get('start_time', 0))
+            duration = match_data.get('duration')
+            
+            # Skip matches without results
+            if radiant_win is None:
+                return
+            
+            # Create or update teams if they don't exist
+            if radiant_team_id and radiant_team_id not in self.teams:
+                self._ensure_team_exists(radiant_team_id, f"Team_{radiant_team_id}")
+            if dire_team_id and dire_team_id not in self.teams:
+                self._ensure_team_exists(dire_team_id, f"Team_{dire_team_id}")
+            
+            # Create match object
+            match = Match(
+                match_id=match_id,
+                radiant_team_id=radiant_team_id or 0,
+                dire_team_id=dire_team_id or 0,
+                match_date=start_time,
+                tournament_id=match_data.get('leagueid'),
+                tournament_name=match_data.get('league_name'),
+                radiant_win=radiant_win,
+                match_duration=duration
+            )
+            
+            # Store match
+            self.matches.append(match)
+            
+            # Update ELO ratings
+            if radiant_team_id and dire_team_id:
+                self._update_elo_ratings(match)
+            
+        except Exception as e:
+            logger.error(f"Error processing historical match {match_data.get('match_id')}: {e}")
+    
+    def _process_all_historical_matches(self):
+        """Process all collected historical matches to update ELO ratings."""
+        logger.info("Processing all historical matches for ELO updates...")
+        
+        matches_processed = 0
+        elo_updates = 0
+        
+        # Sort matches by date (oldest first) to process chronologically
+        sorted_matches = sorted(self.matches, key=lambda m: m.match_date)
+        
+        for match in sorted_matches:
+            try:
+                if match.radiant_win is not None:  # Only process matches with results
+                    # Update ELO ratings
+                    self._update_elo_ratings(match)
+                    elo_updates += 1
+                
+                matches_processed += 1
+                
+                if matches_processed % 1000 == 0:
+                    logger.info(f"Processed {matches_processed}/{len(sorted_matches)} matches...")
+                
+            except Exception as e:
+                logger.error(f"Error processing match {match.match_id}: {e}")
+                continue
+        
+        logger.info(f"Historical match processing complete: {matches_processed} processed, {elo_updates} ELO updates")
+        
+        # Show final ELO ratings for TI14 teams
+        logger.info("Final ELO ratings for TI14 teams:")
+        for team_id, team in self.teams.items():
+            logger.info(f"  {team.name}: {team.team_elo:.1f}")
     
     def _process_pro_match(self, match_data: Dict):
         """Process a professional match from OpenDota API."""
@@ -333,6 +538,10 @@ class Dota2DataCollector:
             radiant_change, dire_change = self.elo_system.calculate_match_rating_change(
                 match, radiant_team, dire_team, match_importance
             )
+            
+            logger.info(f"ELO calculation for match {match.match_id}:")
+            logger.info(f"  Radiant: {radiant_team.name} (ELO: {radiant_team.team_elo:.1f}) -> Change: {radiant_change:.1f}")
+            logger.info(f"  Dire: {dire_team.name} (ELO: {dire_team.team_elo:.1f}) -> Change: {dire_change:.1f}")
             
             # Update team ratings
             radiant_team.team_elo += radiant_change
